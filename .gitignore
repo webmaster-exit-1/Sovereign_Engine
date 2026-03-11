@@ -1,0 +1,8 @@
+# Sovereign Engine Memory & Logs
+*.csv
+*.png
+__pycache__/
+backup_files/
+
+# Potential sensitive env variables
+.env
