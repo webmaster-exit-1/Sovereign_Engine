@@ -45,7 +45,7 @@ def ignite_engine():
     print("--- INITIATING SOVEREIGN AGENT PROTOCOL ---")
     if os.name != "posix":
         print("[FATAL] activate_engine.py requires POSIX/Linux AF_UNIX support.")
-        return
+        raise SystemExit(1)
 
     # 1. SURGICAL CLEARANCE
     print(f"[CLEANUP] Preparing runtime socket at {SOCKET_PATH}...")

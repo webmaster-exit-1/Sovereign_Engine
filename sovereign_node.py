@@ -36,7 +36,7 @@ class NodeAgent:
     def run(self):
         if os.name != "posix":
             print("[FATAL] Sovereign Node requires POSIX/Linux AF_UNIX support.")
-            return
+            raise SystemExit(1)
 
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             try:

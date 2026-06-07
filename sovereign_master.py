@@ -79,7 +79,7 @@ class SovereignMaster:
     def run_vault(self):
         if os.name != "posix":
             print("[FATAL] Sovereign Master requires POSIX/Linux AF_UNIX support.")
-            return
+            raise SystemExit(1)
 
         os.makedirs(self.runtime_dir, exist_ok=True)
         os.chmod(self.runtime_dir, 0o700)
