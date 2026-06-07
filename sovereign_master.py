@@ -74,8 +74,11 @@ class SovereignMaster:
             os.unlink(self.socket_path)
 
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        server.bind(self.socket_path)
-        os.chmod(self.socket_path, 0o600)
+        original_umask = os.umask(0o177)
+        try:
+            server.bind(self.socket_path)
+        finally:
+            os.umask(original_umask)
         server.listen(5)
 
         threading.Thread(target=self.dashboard, daemon=True).start()

@@ -7,6 +7,8 @@ import socket
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RUNTIME_DIR = os.path.join(BASE_DIR, '.runtime')
 SOCKET_PATH = os.path.join(RUNTIME_DIR, 'sovereign_master.sock')
+TIMEOUT_BUDGET_SECONDS = 5.0
+PROBE_INTERVAL_SECONDS = 0.25
 
 def cleanup_runtime_socket():
     if os.path.exists(SOCKET_PATH):
@@ -15,7 +17,7 @@ def cleanup_runtime_socket():
 def is_master_ready(socket_path):
     """Probes the AF_UNIX socket path to see if the Master has successfully bound."""
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-        s.settimeout(0.2)
+        s.settimeout(PROBE_INTERVAL_SECONDS)
         try:
             s.connect(socket_path)
             return True
@@ -44,16 +46,14 @@ def ignite_engine():
     )
 
     # 3. SYNCHRONIZATION PROBE
-    timeout_budget = 5.0
-    probe_interval = 0.25
-    deadline = time.monotonic() + timeout_budget
+    deadline = time.monotonic() + TIMEOUT_BUDGET_SECONDS
 
     while time.monotonic() < deadline:
         if is_master_ready(SOCKET_PATH):
             print("[READY] Master C2 is broadcasting over AF_UNIX.")
             break
         print("[WAIT] Master warming up...")
-        time.sleep(probe_interval)
+        time.sleep(PROBE_INTERVAL_SECONDS)
     else:
         print("[FATAL] Master failed to bind. Ensure sovereign_master.py exists.")
         master_proc.terminate()
@@ -63,6 +63,7 @@ def ignite_engine():
     # 4. SEQUENTIAL ARROW DEPLOYMENT
     node_count = 5
     print(f"[INIT] Deploying {node_count} Sovereign Nodes...")
+    # Launch indices are intentionally 1-based for human-readable worker IDs.
     for i in range(1, node_count + 1):
         subprocess.Popen(
             [sys.executable, "sovereign_node.py", str(i)],

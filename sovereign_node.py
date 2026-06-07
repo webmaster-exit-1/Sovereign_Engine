@@ -86,6 +86,10 @@ class NodeAgent:
             client.close()
 
 if __name__ == "__main__":
-    launch_index = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    try:
+        launch_index = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    except ValueError:
+        print("[FATAL] launch_index must be a valid integer. Usage: python sovereign_node.py <launch_index>")
+        raise SystemExit(1)
     node = NodeAgent(launch_index)
     node.run()
