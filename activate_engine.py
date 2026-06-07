@@ -12,15 +12,12 @@ from ipc_contract import (
     READINESS_PROBE_INTERVAL_SECONDS,
 )
 
-TIMEOUT_BUDGET_SECONDS = READINESS_TIMEOUT_SECONDS
-PROBE_INTERVAL_SECONDS = READINESS_PROBE_INTERVAL_SECONDS
-
 def cleanup_runtime_socket(abort_if_active=True):
     if not os.path.exists(SOCKET_PATH):
         return True
 
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe_sock:
-        probe_sock.settimeout(PROBE_INTERVAL_SECONDS)
+        probe_sock.settimeout(READINESS_PROBE_INTERVAL_SECONDS)
         try:
             probe_sock.connect(SOCKET_PATH)
             if abort_if_active:
@@ -37,7 +34,7 @@ def cleanup_runtime_socket(abort_if_active=True):
 def is_master_ready(socket_path):
     """Probes the AF_UNIX socket path to see if the Master has successfully bound."""
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-        s.settimeout(PROBE_INTERVAL_SECONDS)
+        s.settimeout(READINESS_PROBE_INTERVAL_SECONDS)
         try:
             s.connect(socket_path)
             return True
@@ -70,14 +67,14 @@ def ignite_engine():
     )
 
     # 3. SYNCHRONIZATION PROBE
-    deadline = time.monotonic() + TIMEOUT_BUDGET_SECONDS
+    deadline = time.monotonic() + READINESS_TIMEOUT_SECONDS
 
     while time.monotonic() < deadline:
         if is_master_ready(SOCKET_PATH):
             print("[READY] Master C2 is broadcasting over AF_UNIX.")
             break
         print("[WAIT] Master warming up...")
-        time.sleep(PROBE_INTERVAL_SECONDS)
+        time.sleep(READINESS_PROBE_INTERVAL_SECONDS)
     else:
         print("[FATAL] Master failed to bind. Ensure sovereign_master.py exists.")
         master_proc.terminate()

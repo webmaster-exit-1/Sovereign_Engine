@@ -5,9 +5,6 @@ RUNTIME_DIR = os.path.join(BASE_DIR, ".runtime")
 SOCKET_FILENAME = "sovereign_master.sock"
 SOCKET_PATH = os.path.join(RUNTIME_DIR, SOCKET_FILENAME)
 
-# POSIX/Linux-only AF_UNIX architecture contract.
-IS_POSIX_ONLY = True
-
 # Phase contract: newline-delimited UTF-8 JSON payloads.
 JSON_FRAME_DELIMITER = "\n"
 
