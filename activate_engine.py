@@ -10,9 +10,24 @@ SOCKET_PATH = os.path.join(RUNTIME_DIR, 'sovereign_master.sock')
 TIMEOUT_BUDGET_SECONDS = 5.0
 PROBE_INTERVAL_SECONDS = 0.25
 
-def cleanup_runtime_socket():
-    if os.path.exists(SOCKET_PATH):
-        os.unlink(SOCKET_PATH)
+def cleanup_runtime_socket(abort_if_active=True):
+    if not os.path.exists(SOCKET_PATH):
+        return True
+
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe_sock:
+        probe_sock.settimeout(PROBE_INTERVAL_SECONDS)
+        try:
+            probe_sock.connect(SOCKET_PATH)
+            if abort_if_active:
+                print(f"[FATAL] Active engine detected on {SOCKET_PATH}. Aborting execution.")
+            return False
+        except (ConnectionRefusedError, FileNotFoundError, OSError):
+            try:
+                os.unlink(SOCKET_PATH)
+                print(f"[INFO] Cleared stale socket file: {SOCKET_PATH}")
+            except FileNotFoundError:
+                pass
+            return True
 
 def is_master_ready(socket_path):
     """Probes the AF_UNIX socket path to see if the Master has successfully bound."""
@@ -31,7 +46,8 @@ def ignite_engine():
     print(f"[CLEANUP] Preparing runtime socket at {SOCKET_PATH}...")
     os.makedirs(RUNTIME_DIR, exist_ok=True)
     os.chmod(RUNTIME_DIR, 0o700)
-    cleanup_runtime_socket()
+    if not cleanup_runtime_socket():
+        return
 
     # 2. DECOUPLED MASTER LAUNCH
     # Launching the Master and piping all output so we can see the Sovereignty recovery.
@@ -57,7 +73,7 @@ def ignite_engine():
     else:
         print("[FATAL] Master failed to bind. Ensure sovereign_master.py exists.")
         master_proc.terminate()
-        cleanup_runtime_socket()
+        cleanup_runtime_socket(abort_if_active=False)
         return
 
     # 4. SEQUENTIAL ARROW DEPLOYMENT
@@ -84,7 +100,7 @@ def ignite_engine():
     except KeyboardInterrupt:
         print("\n[STOP] Neutralizing Chaos Star...")
         master_proc.terminate()
-        cleanup_runtime_socket()
+        cleanup_runtime_socket(abort_if_active=False)
         print("[STATUS] Sovereign Engine Dormant.")
 
 if __name__ == "__main__":
