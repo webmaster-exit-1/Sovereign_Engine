@@ -4,12 +4,17 @@ import json
 import time
 import os
 from audit_manager import AuditManager
+from ipc_contract import (
+    RUNTIME_DIR,
+    SOCKET_PATH,
+    JSON_FRAME_DELIMITER,
+    SOCKET_BACKLOG,
+)
 
 class SovereignMaster:
     def __init__(self, socket_path=None):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.runtime_dir = os.path.join(base_dir, '.runtime')
-        self.socket_path = socket_path or os.path.join(self.runtime_dir, 'sovereign_master.sock')
+        self.runtime_dir = RUNTIME_DIR
+        self.socket_path = socket_path or SOCKET_PATH
         self.node_data = {}
         self.node_data_lock = threading.Lock()
         # RECOVERY: Pulling from the physical ledger
@@ -18,8 +23,8 @@ class SovereignMaster:
 
     def handle_node(self, conn):
         node_id = None
-        reader = conn.makefile('r', encoding='utf-8', newline='\n')
-        writer = conn.makefile('w', encoding='utf-8', newline='\n')
+        reader = conn.makefile('r', encoding='utf-8', newline=JSON_FRAME_DELIMITER)
+        writer = conn.makefile('w', encoding='utf-8', newline=JSON_FRAME_DELIMITER)
 
         try:
             handshake_line = reader.readline()
@@ -44,7 +49,7 @@ class SovereignMaster:
             while True:
                 # Dispatch growth command
                 target_r = 0.05
-                writer.write(json.dumps({"target_r": target_r}) + "\n")
+                writer.write(json.dumps({"target_r": target_r}) + JSON_FRAME_DELIMITER)
                 writer.flush()
 
                 data = reader.readline()
@@ -72,6 +77,10 @@ class SovereignMaster:
             conn.close()
 
     def run_vault(self):
+        if os.name != "posix":
+            print("[FATAL] Sovereign Master requires POSIX/Linux AF_UNIX support.")
+            raise SystemExit(1)
+
         os.makedirs(self.runtime_dir, exist_ok=True)
         os.chmod(self.runtime_dir, 0o700)
         if os.path.exists(self.socket_path):
@@ -93,7 +102,7 @@ class SovereignMaster:
             server.bind(self.socket_path)
         finally:
             os.umask(original_umask)
-        server.listen(5)
+        server.listen(SOCKET_BACKLOG)
 
         threading.Thread(target=self.dashboard, daemon=True).start()
 

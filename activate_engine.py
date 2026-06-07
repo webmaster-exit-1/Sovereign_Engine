@@ -3,19 +3,21 @@ import time
 import sys
 import os
 import socket
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RUNTIME_DIR = os.path.join(BASE_DIR, '.runtime')
-SOCKET_PATH = os.path.join(RUNTIME_DIR, 'sovereign_master.sock')
-TIMEOUT_BUDGET_SECONDS = 5.0
-PROBE_INTERVAL_SECONDS = 0.25
+from ipc_contract import (
+    BASE_DIR,
+    RUNTIME_DIR,
+    SOCKET_PATH,
+    MAX_WORKERS,
+    READINESS_TIMEOUT,
+    READINESS_PROBE_INTERVAL,
+)
 
 def cleanup_runtime_socket(abort_if_active=True):
     if not os.path.exists(SOCKET_PATH):
         return True
 
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe_sock:
-        probe_sock.settimeout(PROBE_INTERVAL_SECONDS)
+        probe_sock.settimeout(READINESS_PROBE_INTERVAL)
         try:
             probe_sock.connect(SOCKET_PATH)
             if abort_if_active:
@@ -32,7 +34,7 @@ def cleanup_runtime_socket(abort_if_active=True):
 def is_master_ready(socket_path):
     """Probes the AF_UNIX socket path to see if the Master has successfully bound."""
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-        s.settimeout(PROBE_INTERVAL_SECONDS)
+        s.settimeout(READINESS_PROBE_INTERVAL)
         try:
             s.connect(socket_path)
             return True
@@ -41,6 +43,9 @@ def is_master_ready(socket_path):
 
 def ignite_engine():
     print("--- INITIATING SOVEREIGN AGENT PROTOCOL ---")
+    if os.name != "posix":
+        print("[FATAL] activate_engine.py requires POSIX/Linux AF_UNIX support.")
+        raise SystemExit(1)
 
     # 1. SURGICAL CLEARANCE
     print(f"[CLEANUP] Preparing runtime socket at {SOCKET_PATH}...")
@@ -62,14 +67,14 @@ def ignite_engine():
     )
 
     # 3. SYNCHRONIZATION PROBE
-    deadline = time.monotonic() + TIMEOUT_BUDGET_SECONDS
+    deadline = time.monotonic() + READINESS_TIMEOUT
 
     while time.monotonic() < deadline:
         if is_master_ready(SOCKET_PATH):
             print("[READY] Master C2 is broadcasting over AF_UNIX.")
             break
         print("[WAIT] Master warming up...")
-        time.sleep(PROBE_INTERVAL_SECONDS)
+        time.sleep(READINESS_PROBE_INTERVAL)
     else:
         print("[FATAL] Master failed to bind. Ensure sovereign_master.py exists.")
         master_proc.terminate()
@@ -77,7 +82,7 @@ def ignite_engine():
         return
 
     # 4. SEQUENTIAL ARROW DEPLOYMENT
-    node_count = 5
+    node_count = MAX_WORKERS
     print(f"[INIT] Deploying {node_count} Sovereign Nodes...")
     # Launch indices are intentionally 1-based for human-readable worker IDs.
     for i in range(1, node_count + 1):
