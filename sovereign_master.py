@@ -100,7 +100,6 @@ class SovereignMaster:
         original_umask = os.umask(0o177)
         try:
             server.bind(self.socket_path)
-            os.chmod(self.socket_path, 0o600)
         finally:
             os.umask(original_umask)
         server.listen(SOCKET_BACKLOG)
