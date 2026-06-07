@@ -3,12 +3,17 @@ import time
 import sys
 import os
 import socket
+from ipc_contract import (
+    BASE_DIR,
+    RUNTIME_DIR,
+    SOCKET_PATH,
+    MAX_WORKERS,
+    READINESS_TIMEOUT_SECONDS,
+    READINESS_PROBE_INTERVAL_SECONDS,
+)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RUNTIME_DIR = os.path.join(BASE_DIR, '.runtime')
-SOCKET_PATH = os.path.join(RUNTIME_DIR, 'sovereign_master.sock')
-TIMEOUT_BUDGET_SECONDS = 5.0
-PROBE_INTERVAL_SECONDS = 0.25
+TIMEOUT_BUDGET_SECONDS = READINESS_TIMEOUT_SECONDS
+PROBE_INTERVAL_SECONDS = READINESS_PROBE_INTERVAL_SECONDS
 
 def cleanup_runtime_socket(abort_if_active=True):
     if not os.path.exists(SOCKET_PATH):
@@ -41,6 +46,9 @@ def is_master_ready(socket_path):
 
 def ignite_engine():
     print("--- INITIATING SOVEREIGN AGENT PROTOCOL ---")
+    if os.name != "posix":
+        print("[FATAL] activate_engine.py requires POSIX/Linux AF_UNIX support.")
+        return
 
     # 1. SURGICAL CLEARANCE
     print(f"[CLEANUP] Preparing runtime socket at {SOCKET_PATH}...")
@@ -77,7 +85,7 @@ def ignite_engine():
         return
 
     # 4. SEQUENTIAL ARROW DEPLOYMENT
-    node_count = 5
+    node_count = MAX_WORKERS
     print(f"[INIT] Deploying {node_count} Sovereign Nodes...")
     # Launch indices are intentionally 1-based for human-readable worker IDs.
     for i in range(1, node_count + 1):

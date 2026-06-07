@@ -5,12 +5,12 @@ import math
 import os
 import csv
 import sys
+from ipc_contract import SOCKET_PATH, JSON_FRAME_DELIMITER
 
 class NodeAgent:
     def __init__(self, launch_index, socket_path=None):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
         self.launch_index = launch_index
-        self.socket_path = socket_path or os.path.join(base_dir, '.runtime', 'sovereign_master.sock')
+        self.socket_path = socket_path or SOCKET_PATH
         # --- THE INHALE: Pulling state from the physical world ---
         self.sov, self.t = self.load_last_state()
         print(f"[RECOVERY] Resuming from Sovereignty: {self.sov:.2f}, Step: {self.t}")
@@ -34,6 +34,10 @@ class NodeAgent:
         return 100.0, 0 # Default if no history exists
 
     def run(self):
+        if os.name != "posix":
+            print("[FATAL] Sovereign Node requires POSIX/Linux AF_UNIX support.")
+            return
+
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             try:
                 client.connect(self.socket_path)
@@ -41,14 +45,14 @@ class NodeAgent:
                 print("[FATAL] Master is offline. Sovereignty cannot be synchronized.")
                 return
 
-            reader = client.makefile('r', encoding='utf-8', newline='\n')
-            writer = client.makefile('w', encoding='utf-8', newline='\n')
+            reader = client.makefile('r', encoding='utf-8', newline=JSON_FRAME_DELIMITER)
+            writer = client.makefile('w', encoding='utf-8', newline=JSON_FRAME_DELIMITER)
 
             registration = {
                 "launch_index": self.launch_index,
                 "worker_pid": os.getpid()
             }
-            writer.write(json.dumps(registration) + "\n")
+            writer.write(json.dumps(registration) + JSON_FRAME_DELIMITER)
             writer.flush()
 
             try:
@@ -77,7 +81,7 @@ class NodeAgent:
 
                     # Send stats back to the Master Vault
                     stats = json.dumps({"sov": self.sov, "energy": energy})
-                    writer.write(stats + "\n")
+                    writer.write(stats + JSON_FRAME_DELIMITER)
                     writer.flush()
                     time.sleep(1)
             finally:
