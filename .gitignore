@@ -3,6 +3,7 @@
 *.png
 __pycache__/
 backup_files/
+.runtime/
 
 # Potential sensitive env variables
 .env
