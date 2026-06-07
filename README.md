@@ -19,7 +19,7 @@
 ## 🔌 IPC Contract (Task 2 Baseline)
 * **Transport:** AF_UNIX stream socket only (`.runtime/sovereign_master.sock`) on POSIX/Linux.
 * **Runtime Isolation:** Socket lives in local project runtime directory with restricted permissions (`.runtime` as `0700`, socket file created under restrictive umask as `0600`).
-* **Framing:** UTF-8 newline-delimited JSON (`\n`) for all command/telemetry messages.
+* **Framing:** UTF-8 newline-delimited JSON for all command/telemetry messages.
 * **Node Identity:** Worker identity derives from registration handshake fields: `launch_index` and `worker_pid`.
 * **Capacity Policy:** Fixed worker pool and aligned socket backlog are defined in `ipc_contract.py`.
 * **Activation Health Check:** `activate_engine.py` performs bounded timed readiness probing before node launch.
