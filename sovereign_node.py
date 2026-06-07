@@ -4,10 +4,13 @@ import time
 import math
 import os
 import csv
+import sys
 
 class NodeAgent:
-    def __init__(self, master_ip):
-        self.master_ip = master_ip
+    def __init__(self, launch_index, socket_path=None):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.launch_index = launch_index
+        self.socket_path = socket_path or os.path.join(base_dir, '.runtime', 'sovereign_master.sock')
         # --- THE INHALE: Pulling state from the physical world ---
         self.sov, self.t = self.load_last_state()
         print(f"[RECOVERY] Resuming from Sovereignty: {self.sov:.2f}, Step: {self.t}")
@@ -31,41 +34,61 @@ class NodeAgent:
         return 100.0, 0 # Default if no history exists
 
     def run(self):
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            client.connect((self.master_ip, 9999))
-        except ConnectionRefusedError:
-            print("[FATAL] Master is offline. Sovereignty cannot be synchronized.")
-            return
-        
-        while True:
-            # Receive instructions (target_r) from Master
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             try:
-                data = client.recv(1024).decode()
-                if not data: break
-                config = json.loads(data)
-                r = config['target_r']
-            except:
-                break
-            
-            # --- THE INDUCTIVE ENGINE ---
-            energy = 100 * math.exp(r * self.t)
-            resistance = 0.0005 * (energy ** 1.5)
-            gain = 0.1 - (resistance * 0.01)
-            
-            if gain <= 0:
-                self.t = max(0, self.t - 5)
-                time.sleep(2)
-            else:
-                self.sov += gain
-                self.t += 1
-            
-            # Send stats back to the Master Vault
-            stats = json.dumps({"sov": self.sov, "energy": energy})
-            client.sendall(stats.encode())
-            time.sleep(1)
+                client.connect(self.socket_path)
+            except (ConnectionRefusedError, FileNotFoundError, OSError):
+                print("[FATAL] Master is offline. Sovereignty cannot be synchronized.")
+                return
+
+            reader = client.makefile('r', encoding='utf-8', newline='\n')
+            writer = client.makefile('w', encoding='utf-8', newline='\n')
+
+            registration = {
+                "launch_index": self.launch_index,
+                "worker_pid": os.getpid()
+            }
+            writer.write(json.dumps(registration) + "\n")
+            writer.flush()
+
+            try:
+                while True:
+                    # Receive instructions (target_r) from Master
+                    try:
+                        data = reader.readline()
+                        if not data:
+                            break
+                        config = json.loads(data)
+                        r = config['target_r']
+                    except (json.JSONDecodeError, KeyError, OSError):
+                        break
+
+                    # --- THE INDUCTIVE ENGINE ---
+                    energy = 100 * math.exp(r * self.t)
+                    resistance = 0.0005 * (energy ** 1.5)
+                    gain = 0.1 - (resistance * 0.01)
+
+                    if gain <= 0:
+                        self.t = max(0, self.t - 5)
+                        time.sleep(2)
+                    else:
+                        self.sov += gain
+                        self.t += 1
+
+                    # Send stats back to the Master Vault
+                    stats = json.dumps({"sov": self.sov, "energy": energy})
+                    writer.write(stats + "\n")
+                    writer.flush()
+                    time.sleep(1)
+            finally:
+                reader.close()
+                writer.close()
 
 if __name__ == "__main__":
-    node = NodeAgent('127.0.0.1')
+    try:
+        launch_index = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    except ValueError:
+        print("[FATAL] launch_index must be a valid integer. Usage: python sovereign_node.py <launch_index>")
+        raise SystemExit(1)
+    node = NodeAgent(launch_index)
     node.run()
-
